@@ -1,0 +1,21 @@
+[package]
+name = "apkrunner-napi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+apkrunner-core = { path = "../apkrunner-core" }
+napi.workspace = true
+napi-derive.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+
+[build-dependencies]
+napi-build = "2"

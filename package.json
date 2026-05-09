@@ -1,0 +1,29 @@
+{
+  "name": "apkrunner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "APKRunner monorepo: Electron shell plus Rust APK inspection/runtime foundation.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "workspaces": [
+    "apps/desktop"
+  ],
+  "scripts": {
+    "dev": "npm --workspace @apkrunner/desktop run dev",
+    "build": "npm run build:rust && npm run build:desktop",
+    "build:desktop": "npm --workspace @apkrunner/desktop run build",
+    "build:rust": "cargo build --workspace",
+    "check": "npm run test:ts && cargo clippy --workspace --all-targets -- -D warnings",
+    "test": "npm run test:rust && npm run test:ts",
+    "test:rust": "cargo test --workspace",
+    "test:ts": "npm --workspace @apkrunner/desktop run typecheck && npm --workspace @apkrunner/desktop run test:imports",
+    "build:native": "npm --workspace @apkrunner/desktop run build:native"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "3.6.2"
+  },
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  }
+}

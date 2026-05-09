@@ -1,0 +1,29 @@
+{
+  "name": "@apkrunner/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "APKRunner Electron desktop shell.",
+  "type": "module",
+  "main": "out/main/index.js",
+  "scripts": {
+    "predev": "electron --version",
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "test:imports": "node ../../tools/check-renderer-imports.mjs",
+    "build:native": "cargo build -p apkrunner-napi --release && node ../../tools/copy-native-artifact.mjs"
+  },
+  "dependencies": {
+    "lucide-solid": "1.14.0",
+    "solid-glass": "0.0.3",
+    "solid-js": "1.9.12"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "electron": "42.0.0",
+    "electron-vite": "5.0.0",
+    "typescript": "6.0.3",
+    "vite": "7.3.3",
+    "vite-plugin-solid": "^2.11.0"
+  }
+}
