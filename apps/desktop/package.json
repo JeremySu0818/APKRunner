@@ -6,8 +6,8 @@
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
-    "predev": "electron --version",
-    "dev": "electron-vite dev",
+    "predev": "node ../../tools/install-electron.mjs && electron --version",
+    "dev": "node ../../tools/run-electron-vite-dev.mjs",
     "build": "npm run typecheck && electron-vite build",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "test:imports": "node ../../tools/check-renderer-imports.mjs",

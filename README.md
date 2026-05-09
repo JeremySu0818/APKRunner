@@ -23,7 +23,7 @@ This first version is an engineering scaffold and APK inspector with a skeleton 
 
 Prerequisites:
 
-- Node.js 22 or newer
+- Node.js 22.12.0 or newer
 - npm 10 or newer
 - Rust stable with Cargo
 - A native build toolchain for napi-rs on your platform
@@ -31,10 +31,18 @@ Prerequisites:
 Start the app:
 
 ```bash
-npm install && npm run dev
+npm install
+npm run build:native
+npm run dev
 ```
 
 The desktop app still opens if the native addon has not been built. In that state it shows a native-addon unavailable panel with the attempted load paths and error details.
+
+If Electron's binary download was interrupted, run:
+
+```bash
+npm run repair:deps
+```
 
 ## Rust Addon Build
 
