@@ -14,6 +14,7 @@ pub struct SurfaceSize {
 pub enum FrameFormat {
     Rgba8888,
     PlaceholderText,
+    Png,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -47,5 +48,44 @@ impl PlaceholderFrameRenderer {
             metadata: "Deterministic APKRunner placeholder gradient".to_string(),
             timestamp: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
         }
+    }
+}
+
+pub fn parse_png_dimensions(bytes: &[u8]) -> Option<SurfaceSize> {
+    const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
+    if bytes.len() < 24 || &bytes[..8] != PNG_SIGNATURE {
+        return None;
+    }
+    let ihdr_length = u32::from_be_bytes(bytes[8..12].try_into().ok()?);
+    if ihdr_length != 13 || &bytes[12..16] != b"IHDR" {
+        return None;
+    }
+    Some(SurfaceSize {
+        width: u32::from_be_bytes(bytes[16..20].try_into().ok()?),
+        height: u32::from_be_bytes(bytes[20..24].try_into().ok()?),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn png_ihdr_parser_extracts_width_and_height() {
+        let mut png = Vec::new();
+        png.extend_from_slice(b"\x89PNG\r\n\x1a\n");
+        png.extend_from_slice(&13u32.to_be_bytes());
+        png.extend_from_slice(b"IHDR");
+        png.extend_from_slice(&320u32.to_be_bytes());
+        png.extend_from_slice(&180u32.to_be_bytes());
+        png.extend_from_slice(&[8, 6, 0, 0, 0]);
+        png.extend_from_slice(&[0, 0, 0, 0]);
+        assert_eq!(
+            parse_png_dimensions(&png),
+            Some(SurfaceSize {
+                width: 320,
+                height: 180
+            })
+        );
     }
 }

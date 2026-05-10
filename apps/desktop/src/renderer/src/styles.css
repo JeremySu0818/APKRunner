@@ -214,6 +214,59 @@ textarea {
   background: var(--glass-surface);
 }
 
+.runtime-bundle-box {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: var(--glass-border-width) solid var(--glass-stroke);
+  border-radius: var(--glass-inner-radius);
+  background: var(--glass-surface);
+}
+
+.runtime-bundle-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.runtime-bundle-header span,
+.runtime-bundle-message {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.runtime-bundle-message {
+  min-height: 34px;
+  overflow-wrap: anywhere;
+}
+
+.runtime-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / calc(var(--glass-specular-opacity) * 0.12));
+  overflow: hidden;
+}
+
+.runtime-progress span {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  background: var(--teal);
+}
+
+.runtime-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.runtime-actions .glass-button {
+  min-height: 36px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
 .sidebar-status span {
   color: var(--muted);
   font-size: 12px;
@@ -260,6 +313,20 @@ textarea {
 .surface-running {
   color: var(--ink);
   border-color: color-mix(in srgb, var(--teal) 38%, transparent);
+}
+
+.surface-stage {
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 14px;
+  cursor: crosshair;
+}
+
+.surface-frame {
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
+  object-fit: contain;
+  image-rendering: auto;
 }
 
 .surface-message {

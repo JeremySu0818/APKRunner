@@ -3,11 +3,16 @@ use std::collections::{HashSet, VecDeque};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::apk::{LoadedApk, UnsupportedFeature, UnsupportedFeatureSeverity, UnsupportedFeatureSource};
+use crate::apk::{
+    LoadedApk, UnsupportedFeature, UnsupportedFeatureSeverity, UnsupportedFeatureSource,
+};
+use crate::backends::aosp::AospRuntimeBackend;
 use crate::error::{ApkRunnerError, ApkRunnerResult};
 use crate::event::{LogLevel, RuntimeEvent};
 use crate::frame::PlaceholderFrameRenderer;
+use crate::input::InputEvent;
 use crate::runner::{AppConfiguration, AppInstance};
+use crate::runtime_bundle::RuntimeBundleConfiguration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BackendKind {
@@ -27,6 +32,7 @@ pub trait RuntimeBackend: Send {
     ) -> ApkRunnerResult<AppInstance>;
     fn start_app(&mut self, instance: &AppInstance) -> ApkRunnerResult<()>;
     fn stop_app(&mut self, instance: &AppInstance) -> ApkRunnerResult<()>;
+    fn dispatch_input(&mut self, instance: &AppInstance, input: InputEvent) -> ApkRunnerResult<()>;
     fn poll_runtime_events(&mut self) -> Vec<RuntimeEvent>;
 }
 
@@ -37,7 +43,6 @@ pub struct SkeletonRuntimeBackend {
 }
 
 pub struct DexVmRuntimeBackend;
-pub struct AospRuntimeBackend;
 pub struct VmRuntimeBackend;
 pub struct ArmTranslationRuntimeBackend;
 
@@ -71,6 +76,7 @@ impl RuntimeBackend for SkeletonRuntimeBackend {
             loaded_apk_id: loaded_apk.id,
             package_name,
             launcher_activity: loaded_apk.summary.launcher_activity.clone(),
+            apk_path: loaded_apk.host_path.clone(),
         })
     }
 
@@ -82,10 +88,7 @@ impl RuntimeBackend for SkeletonRuntimeBackend {
         self.push_log(format!("APKRunner: Starting {}", instance.package_name));
         self.push_log(format!(
             "APKRunner: Launcher Activity = {}",
-            instance
-                .launcher_activity
-                .as_deref()
-                .unwrap_or("<none>")
+            instance.launcher_activity.as_deref().unwrap_or("<none>")
         ));
         self.push_log("APKRunner: Using SkeletonRuntimeBackend");
         self.push_log("APKRunner: Runtime execution is not implemented yet");
@@ -127,25 +130,60 @@ impl RuntimeBackend for SkeletonRuntimeBackend {
         Ok(())
     }
 
+    fn dispatch_input(&mut self, instance: &AppInstance, input: InputEvent) -> ApkRunnerResult<()> {
+        if !self.running_instances.contains(&instance.id) {
+            return Err(ApkRunnerError::AppNotRunning(instance.id));
+        }
+        self.push_log(format!(
+            "APKRunner: Skeleton input event for {}: {:?}",
+            instance.package_name, input
+        ));
+        Ok(())
+    }
+
     fn poll_runtime_events(&mut self) -> Vec<RuntimeEvent> {
         self.events.drain(..).collect()
     }
 }
 
-pub fn backend_for(kind: BackendKind) -> ApkRunnerResult<Box<dyn RuntimeBackend>> {
+pub fn backend_for(
+    kind: BackendKind,
+    sandbox_root: impl Into<std::path::PathBuf>,
+    runtime_bundle: RuntimeBundleConfiguration,
+) -> ApkRunnerResult<Box<dyn RuntimeBackend>> {
     match kind {
         BackendKind::Skeleton => Ok(Box::new(SkeletonRuntimeBackend::new())),
         BackendKind::DexVm => Err(ApkRunnerError::BackendNotAvailable(
             "DexVmRuntimeBackend is reserved for future research.".to_string(),
         )),
-        BackendKind::Aosp => Err(ApkRunnerError::BackendNotAvailable(
-            "AospRuntimeBackend is reserved for future research.".to_string(),
-        )),
+        BackendKind::Aosp => Ok(Box::new(AospRuntimeBackend::new(
+            sandbox_root,
+            runtime_bundle,
+        )?)),
         BackendKind::Vm => Err(ApkRunnerError::BackendNotAvailable(
             "VmRuntimeBackend is reserved for future research.".to_string(),
         )),
         BackendKind::ArmTranslation => Err(ApkRunnerError::BackendNotAvailable(
             "ArmTranslationRuntimeBackend is reserved for future research.".to_string(),
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tempfile::tempdir;
+
+    use super::*;
+
+    #[test]
+    fn backend_kind_aosp_constructs_backend() {
+        let temp = tempdir().expect("tempdir");
+        let backend = backend_for(
+            BackendKind::Aosp,
+            temp.path(),
+            RuntimeBundleConfiguration::default(),
+        )
+        .expect("Aosp backend should construct");
+        assert_eq!(backend.name(), "AospRuntimeBackend");
     }
 }

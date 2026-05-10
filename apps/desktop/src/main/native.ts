@@ -5,7 +5,10 @@ import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
   ApkSummary,
-  RuntimeEvent
+  InputEvent,
+  RuntimeBundleStatus,
+  RuntimeEvent,
+  RuntimeOperationStatus
 } from "../shared/protocol";
 
 interface NativeRunnerCreated {
@@ -23,6 +26,11 @@ export interface NativeAddon {
   createAppInstance(runnerId: string, config: Record<string, unknown>): NativeAppInstanceCreated;
   startApp(runnerId: string, instanceId: string): Record<string, unknown>;
   stopApp(runnerId: string, instanceId: string): Record<string, unknown>;
+  dispatchInput(runnerId: string, instanceId: string, input: InputEvent): Record<string, unknown>;
+  getRuntimeBundleStatus(config: Record<string, unknown>): RuntimeBundleStatus;
+  startRuntimeDownload(config: Record<string, unknown>): RuntimeOperationStatus;
+  startRuntimeDelete(config: Record<string, unknown>): RuntimeOperationStatus;
+  getRuntimeOperationStatus(operationId: string): RuntimeOperationStatus;
   pollEvents(runnerId: string): RuntimeEvent[];
 }
 

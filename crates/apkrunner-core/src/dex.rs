@@ -221,10 +221,9 @@ fn type_descriptor(
     }
     let offset = type_ids_off as usize + type_index as usize * 4;
     let descriptor_idx = read_u32(bytes, offset)? as usize;
-    strings
-        .get(descriptor_idx)
-        .cloned()
-        .ok_or_else(|| ApkRunnerError::DexParsingError("descriptor string index out of range".to_string()))
+    strings.get(descriptor_idx).cloned().ok_or_else(|| {
+        ApkRunnerError::DexParsingError("descriptor string index out of range".to_string())
+    })
 }
 
 fn descriptor_to_class_name(descriptor: &str) -> String {

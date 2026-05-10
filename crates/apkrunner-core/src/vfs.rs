@@ -149,6 +149,9 @@ mod tests {
         let error = vfs
             .resolve_virtual_path("/data/data/com.example/../other")
             .expect_err("path traversal should fail");
-        assert!(matches!(error, ApkRunnerError::VirtualPathEscapesSandbox(_)));
+        assert!(matches!(
+            error,
+            ApkRunnerError::VirtualPathEscapesSandbox(_)
+        ));
     }
 }

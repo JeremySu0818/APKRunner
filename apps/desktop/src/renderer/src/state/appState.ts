@@ -1,8 +1,11 @@
 import { createStore, produce } from "solid-js/store";
 import type {
   ApkSummary,
+  InputEvent,
   LogEntry,
+  RuntimeBundleStatus,
   RuntimeEvent,
+  RuntimeOperationStatus,
   RuntimeStatusValue,
   UnsupportedFeature
 } from "../../../shared/protocol";
@@ -15,6 +18,7 @@ export interface AppState {
   runtimeStatus: RuntimeStatusValue;
   logEntries: LogEntry[];
   runtimeEvents: RuntimeEvent[];
+  latestFrame: Extract<RuntimeEvent, { type: "FrameReady" }> | null;
   unsupportedFeatures: UnsupportedFeature[];
   nativeAvailable: boolean;
   nativeLoadError: string | null;
@@ -22,6 +26,8 @@ export interface AppState {
   currentError: string | null;
   activeTab: DevToolsTab;
   backendName: string;
+  runtimeBundle: RuntimeBundleStatus | null;
+  runtimeOperation: RuntimeOperationStatus | null;
 }
 
 const initialState: AppState = {
@@ -30,13 +36,16 @@ const initialState: AppState = {
   runtimeStatus: "Idle",
   logEntries: [],
   runtimeEvents: [],
+  latestFrame: null,
   unsupportedFeatures: [],
   nativeAvailable: true,
   nativeLoadError: null,
   attemptedNativePaths: [],
   currentError: null,
   activeTab: "Console",
-  backendName: "SkeletonRuntimeBackend"
+  backendName: "SkeletonRuntimeBackend",
+  runtimeBundle: null,
+  runtimeOperation: null
 };
 
 export const [appState, setAppState] = createStore<AppState>(initialState);
@@ -79,6 +88,9 @@ function applyEvents(events: RuntimeEvent[]): void {
         if (event.type === "AppStopped") {
           state.runtimeStatus = "Stopped";
         }
+        if (event.type === "FrameReady") {
+          state.latestFrame = event;
+        }
       }
       state.unsupportedFeatures = mergeUnsupported(state.currentApk, state.runtimeEvents);
     })
@@ -109,6 +121,52 @@ function applyStatus(status: Awaited<ReturnType<typeof window.APKRunner.getStatu
 
 export async function refreshStatus(): Promise<void> {
   applyStatus(await window.APKRunner.getStatus());
+}
+
+export async function refreshRuntimeBundleStatus(): Promise<void> {
+  const result = await window.APKRunner.getRuntimeBundleStatus();
+  if (!result.success) {
+    setAppState({ currentError: result.error.message });
+    return;
+  }
+  setAppState({ runtimeBundle: result.data });
+}
+
+export async function startRuntimeDownload(): Promise<void> {
+  const result = await window.APKRunner.startRuntimeDownload();
+  if (!result.success) {
+    setAppState({ currentError: result.error.message });
+    return;
+  }
+  setAppState({ runtimeOperation: result.data, currentError: null });
+}
+
+export async function startRuntimeDelete(): Promise<void> {
+  const result = await window.APKRunner.startRuntimeDelete();
+  if (!result.success) {
+    setAppState({ currentError: result.error.message });
+    return;
+  }
+  setAppState({ runtimeOperation: result.data, currentError: null });
+}
+
+export async function pollRuntimeOperation(): Promise<void> {
+  const operationId = appState.runtimeOperation?.operationId;
+  if (!operationId) {
+    return;
+  }
+  const result = await window.APKRunner.getRuntimeOperationStatus(operationId);
+  if (!result.success) {
+    setAppState({ currentError: result.error.message });
+    return;
+  }
+  setAppState({ runtimeOperation: result.data });
+  if (result.data.bundleStatus) {
+    setAppState({ runtimeBundle: result.data.bundleStatus });
+  }
+  if (result.data.state === "installed" || result.data.state === "notInstalled" || result.data.state === "error") {
+    await refreshRuntimeBundleStatus();
+  }
 }
 
 export async function openApk(): Promise<void> {
@@ -148,6 +206,15 @@ export async function stopApp(): Promise<void> {
   }
   applyStatus(result);
   await pollEvents();
+}
+
+export async function dispatchInput(input: InputEvent): Promise<void> {
+  const result = await window.APKRunner.dispatchInput(input);
+  if (!result.success) {
+    setAppState({ runtimeStatus: "Error", currentError: result.error.message });
+    return;
+  }
+  applyStatus(result);
 }
 
 export async function pollEvents(): Promise<void> {

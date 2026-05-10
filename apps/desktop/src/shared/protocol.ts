@@ -52,7 +52,7 @@ export interface SurfaceSize {
   height: number;
 }
 
-export type FrameFormat = "Rgba8888" | "PlaceholderText";
+export type FrameFormat = "Rgba8888" | "PlaceholderText" | "Png";
 
 export interface LogEntry {
   level: LogLevel;
@@ -95,6 +95,37 @@ export interface OpenApkResult {
   instanceId: string | null;
 }
 
+export type InputEvent =
+  | { type: "tap"; x: number; y: number }
+  | { type: "key"; keyCode: number }
+  | { type: "text"; text: string };
+
+export type RuntimeInstallState = "notInstalled" | "installed" | "installing" | "deleting" | "error";
+
+export interface RuntimeBundleStatus {
+  state: RuntimeInstallState;
+  bundleRoot: string;
+  sdkRoot: string;
+  avdHome: string;
+  avdName: string;
+  manifestPath: string;
+  installed: boolean;
+  phase: string;
+  message: string;
+  progress: number | null;
+  error: string | null;
+}
+
+export interface RuntimeOperationStatus {
+  operationId: string;
+  state: RuntimeInstallState;
+  phase: string;
+  message: string;
+  progress: number | null;
+  error: string | null;
+  bundleStatus: RuntimeBundleStatus | null;
+}
+
 export interface IpcError {
   code: string;
   message: string;
@@ -110,6 +141,11 @@ export interface APKRunnerPreloadApi {
   getApkInfo(): Promise<IpcResult<ApkSummary | null>>;
   startApp(): Promise<IpcResult<RunnerStatus>>;
   stopApp(): Promise<IpcResult<RunnerStatus>>;
+  dispatchInput(input: InputEvent): Promise<IpcResult<RunnerStatus>>;
+  getRuntimeBundleStatus(): Promise<IpcResult<RuntimeBundleStatus>>;
+  startRuntimeDownload(): Promise<IpcResult<RuntimeOperationStatus>>;
+  startRuntimeDelete(): Promise<IpcResult<RuntimeOperationStatus>>;
+  getRuntimeOperationStatus(operationId: string): Promise<IpcResult<RuntimeOperationStatus>>;
   getStatus(): Promise<IpcResult<RunnerStatus>>;
   pollEvents(): Promise<IpcResult<RuntimeEvent[]>>;
 }

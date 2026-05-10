@@ -2,9 +2,12 @@ import { dialog } from "electron";
 import { basename } from "node:path";
 import type {
   ApkSummary,
+  InputEvent,
   OpenApkResult,
+  RuntimeBundleStatus,
   RunnerStatus,
   RuntimeEvent,
+  RuntimeOperationStatus,
   RuntimeStatusValue
 } from "../shared/protocol";
 import { getAppDataPaths } from "./appData";
@@ -46,10 +49,34 @@ export class RuntimeService {
 
     const addon = this.nativeAddon();
     const paths = getAppDataPaths();
-    const created = addon.createRunner({
-      backendKind: "Skeleton",
+    const backendKind = process.env.APKRUNNER_BACKEND?.toLowerCase() === "skeleton" ? "Skeleton" : "Aosp";
+    const runnerConfig: Record<string, unknown> = {
+      backendKind,
       sandboxRoot: paths.sandboxRoot
-    });
+    };
+
+    if (backendKind === "Aosp") {
+      const runtimeBundle: Record<string, unknown> = {
+        bundleRoot: paths.androidRuntimeRoot,
+        launchEmulator: true,
+        allowSystemToolOverrides: process.env.APKRUNNER_ALLOW_SYSTEM_ANDROID_TOOLS === "1"
+      };
+      if (process.env.APKRUNNER_ADB_PATH) {
+        runtimeBundle.debugAdbPath = process.env.APKRUNNER_ADB_PATH;
+      }
+      if (process.env.APKRUNNER_EMULATOR_PATH) {
+        runtimeBundle.debugEmulatorPath = process.env.APKRUNNER_EMULATOR_PATH;
+      }
+      if (process.env.APKRUNNER_SDKMANAGER_PATH) {
+        runtimeBundle.debugSdkmanagerPath = process.env.APKRUNNER_SDKMANAGER_PATH;
+      }
+      if (process.env.APKRUNNER_AVDMANAGER_PATH) {
+        runtimeBundle.debugAvdmanagerPath = process.env.APKRUNNER_AVDMANAGER_PATH;
+      }
+      runnerConfig.runtimeBundle = runtimeBundle;
+    }
+
+    const created = addon.createRunner(runnerConfig);
     this.state.runnerId = created.runnerId;
     this.state.backendName = created.backendName;
     this.state.status = "Idle";
@@ -123,6 +150,11 @@ export class RuntimeService {
       this.state.lastError = "No APK is loaded.";
       throw new Error(this.state.lastError);
     }
+    if (this.state.backendName === "AospRuntimeBackend" && !this.runtimeBundleStatus().installed) {
+      this.state.status = "Error";
+      this.state.lastError = "Download the managed Android runtime before starting an APK.";
+      throw new Error(this.state.lastError);
+    }
 
     addon.startApp(runnerId, this.state.currentInstanceId);
     this.state.status = "Running";
@@ -143,6 +175,43 @@ export class RuntimeService {
     this.state.status = "Stopped";
     this.state.lastError = null;
     return this.status();
+  }
+
+  dispatchInput(input: InputEvent): RunnerStatus {
+    const addon = this.nativeAddon();
+    const runnerId = this.ensureRunner();
+    if (!this.state.currentInstanceId) {
+      this.state.status = "Error";
+      this.state.lastError = "No app instance is loaded.";
+      throw new Error(this.state.lastError);
+    }
+
+    addon.dispatchInput(runnerId, this.state.currentInstanceId, input);
+    this.state.lastError = null;
+    return this.status();
+  }
+
+  runtimeBundleStatus(): RuntimeBundleStatus {
+    const addon = this.nativeAddon();
+    const paths = getAppDataPaths();
+    return addon.getRuntimeBundleStatus({ bundleRoot: paths.androidRuntimeRoot });
+  }
+
+  startRuntimeDownload(): RuntimeOperationStatus {
+    const addon = this.nativeAddon();
+    const paths = getAppDataPaths();
+    return addon.startRuntimeDownload({ bundleRoot: paths.androidRuntimeRoot });
+  }
+
+  startRuntimeDelete(): RuntimeOperationStatus {
+    const addon = this.nativeAddon();
+    const paths = getAppDataPaths();
+    return addon.startRuntimeDelete({ bundleRoot: paths.androidRuntimeRoot });
+  }
+
+  runtimeOperationStatus(operationId: string): RuntimeOperationStatus {
+    const addon = this.nativeAddon();
+    return addon.getRuntimeOperationStatus(operationId);
   }
 
   pollEvents(): RuntimeEvent[] {

@@ -3,3 +3,5 @@ target/
 out/
 *.node
 *.tsbuildinfo
+.apkrunner-runtime-test/
+*.apk

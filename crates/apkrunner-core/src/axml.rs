@@ -66,7 +66,9 @@ pub fn parse_axml(bytes: &[u8]) -> ApkRunnerResult<AxmlDocument> {
             }
             RES_XML_END_ELEMENT_TYPE => {
                 let element = stack.pop().ok_or_else(|| {
-                    ApkRunnerError::AxmlParsingError("end element without matching start".to_string())
+                    ApkRunnerError::AxmlParsingError(
+                        "end element without matching start".to_string(),
+                    )
                 })?;
                 if let Some(parent) = stack.last_mut() {
                     parent.children.push(element);
@@ -246,7 +248,8 @@ fn decode_utf16_string(bytes: &[u8]) -> ApkRunnerResult<String> {
     for chunk in bytes[offset..end].chunks_exact(2) {
         units.push(LittleEndian::read_u16(chunk));
     }
-    String::from_utf16(&units).map_err(|source| ApkRunnerError::AxmlParsingError(source.to_string()))
+    String::from_utf16(&units)
+        .map_err(|source| ApkRunnerError::AxmlParsingError(source.to_string()))
 }
 
 fn read_length8(bytes: &[u8], offset: &mut usize) -> ApkRunnerResult<usize> {
@@ -294,7 +297,10 @@ fn parse_start_element(
     let attr_ext_offset = offset
         .checked_add(16)
         .ok_or(ApkRunnerError::AxmlUnexpectedEof)?;
-    if attr_ext_offset.checked_add(20).is_none_or(|end| end > chunk_end) {
+    if attr_ext_offset
+        .checked_add(20)
+        .is_none_or(|end| end > chunk_end)
+    {
         return Err(ApkRunnerError::AxmlUnexpectedEof);
     }
 
@@ -350,10 +356,9 @@ fn read_byte(bytes: &[u8], offset: usize) -> ApkRunnerResult<u8> {
 }
 
 fn string_at(strings: &[String], index: u32) -> ApkRunnerResult<String> {
-    strings
-        .get(index as usize)
-        .cloned()
-        .ok_or_else(|| ApkRunnerError::AxmlParsingError(format!("string index {index} is out of range")))
+    strings.get(index as usize).cloned().ok_or_else(|| {
+        ApkRunnerError::AxmlParsingError(format!("string index {index} is out of range"))
+    })
 }
 
 fn value_from_typed_data(
@@ -380,8 +385,10 @@ mod tests {
     use byteorder::WriteBytesExt;
 
     fn push_header(out: &mut Vec<u8>, chunk_type: u16, header_size: u16, size: u32) {
-        out.write_u16::<LittleEndian>(chunk_type).expect("write type");
-        out.write_u16::<LittleEndian>(header_size).expect("write header size");
+        out.write_u16::<LittleEndian>(chunk_type)
+            .expect("write type");
+        out.write_u16::<LittleEndian>(header_size)
+            .expect("write header size");
         out.write_u32::<LittleEndian>(size).expect("write size");
     }
 
@@ -403,10 +410,12 @@ mod tests {
         let size = strings_start + data_len;
         let mut out = Vec::new();
         push_header(&mut out, RES_STRING_POOL_TYPE, 28, size);
-        out.write_u32::<LittleEndian>(strings.len() as u32).expect("count");
+        out.write_u32::<LittleEndian>(strings.len() as u32)
+            .expect("count");
         out.write_u32::<LittleEndian>(0).expect("style count");
         out.write_u32::<LittleEndian>(UTF8_FLAG).expect("flags");
-        out.write_u32::<LittleEndian>(strings_start).expect("strings start");
+        out.write_u32::<LittleEndian>(strings_start)
+            .expect("strings start");
         out.write_u32::<LittleEndian>(0).expect("styles start");
         let mut cursor = 0u32;
         for value in &encoded {
@@ -429,13 +438,15 @@ mod tests {
         out.write_u32::<LittleEndian>(name).expect("name");
         out.write_u16::<LittleEndian>(20).expect("attr start");
         out.write_u16::<LittleEndian>(20).expect("attr size");
-        out.write_u16::<LittleEndian>(attributes.len() as u16).expect("attr count");
+        out.write_u16::<LittleEndian>(attributes.len() as u16)
+            .expect("attr count");
         out.write_u16::<LittleEndian>(0).expect("id index");
         out.write_u16::<LittleEndian>(0).expect("class index");
         out.write_u16::<LittleEndian>(0).expect("style index");
         for (name_index, value_index) in attributes {
             out.write_u32::<LittleEndian>(NO_INDEX).expect("attr ns");
-            out.write_u32::<LittleEndian>(*name_index).expect("attr name");
+            out.write_u32::<LittleEndian>(*name_index)
+                .expect("attr name");
             out.write_u32::<LittleEndian>(*value_index).expect("raw");
             out.write_u16::<LittleEndian>(8).expect("typed size");
             out.push(0);

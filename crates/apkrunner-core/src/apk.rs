@@ -253,7 +253,9 @@ fn extract_manifest_metadata(document: &AxmlDocument) -> ManifestMetadata {
         .unwrap_or("unknown.package")
         .to_string();
     let version_name = root.attribute("versionName").map(ToString::to_string);
-    let version_code = root.attribute("versionCode").and_then(|value| value.parse().ok());
+    let version_code = root
+        .attribute("versionCode")
+        .and_then(|value| value.parse().ok());
     let uses_sdk = root.children_named("uses-sdk").next();
     let min_sdk = uses_sdk
         .and_then(|element| element.attribute("minSdkVersion"))
@@ -282,9 +284,9 @@ fn find_launcher_activity(root: &AxmlElement, package_name: &str) -> Option<Stri
     let application = root.children_named("application").next()?;
     for activity in application.children_named("activity") {
         let has_launcher_filter = activity.children_named("intent-filter").any(|filter| {
-            let has_main = filter.children_named("action").any(|action| {
-                action.attribute("name") == Some("android.intent.action.MAIN")
-            });
+            let has_main = filter
+                .children_named("action")
+                .any(|action| action.attribute("name") == Some("android.intent.action.MAIN"));
             let has_launcher = filter.children_named("category").any(|category| {
                 category.attribute("name") == Some("android.intent.category.LAUNCHER")
             });
@@ -399,9 +401,9 @@ fn dex_contains_unity(dex: &DexFile) -> bool {
 }
 
 fn dex_contains_google_play_services(dex: &DexFile) -> bool {
-    dex.strings
-        .iter()
-        .any(|value| value.contains("com/google/android/gms") || value.contains("Lcom/google/android/gms"))
+    dex.strings.iter().any(|value| {
+        value.contains("com/google/android/gms") || value.contains("Lcom/google/android/gms")
+    })
 }
 
 fn compatibility_level(features: &[UnsupportedFeature]) -> CompatibilityLevel {
@@ -439,7 +441,8 @@ mod tests {
 
     fn header(out: &mut Vec<u8>, chunk_type: u16, header_size: u16, size: u32) {
         out.write_u16::<LittleEndian>(chunk_type).expect("type");
-        out.write_u16::<LittleEndian>(header_size).expect("header size");
+        out.write_u16::<LittleEndian>(header_size)
+            .expect("header size");
         out.write_u32::<LittleEndian>(size).expect("size");
     }
 
@@ -457,7 +460,8 @@ mod tests {
         let size = strings_start + encoded.iter().map(|bytes| bytes.len() as u32).sum::<u32>();
         let mut out = Vec::new();
         header(&mut out, RES_STRING_POOL_TYPE, 28, size);
-        out.write_u32::<LittleEndian>(strings.len() as u32).expect("count");
+        out.write_u32::<LittleEndian>(strings.len() as u32)
+            .expect("count");
         out.write_u32::<LittleEndian>(0).expect("styles");
         out.write_u32::<LittleEndian>(UTF8_FLAG).expect("flags");
         out.write_u32::<LittleEndian>(strings_start).expect("start");
@@ -483,13 +487,15 @@ mod tests {
         out.write_u32::<LittleEndian>(name).expect("name");
         out.write_u16::<LittleEndian>(20).expect("attr start");
         out.write_u16::<LittleEndian>(20).expect("attr size");
-        out.write_u16::<LittleEndian>(attrs.len() as u16).expect("attr count");
+        out.write_u16::<LittleEndian>(attrs.len() as u16)
+            .expect("attr count");
         out.write_u16::<LittleEndian>(0).expect("id");
         out.write_u16::<LittleEndian>(0).expect("class");
         out.write_u16::<LittleEndian>(0).expect("style");
         for (name_index, value_index) in attrs {
             out.write_u32::<LittleEndian>(NO_INDEX).expect("attr ns");
-            out.write_u32::<LittleEndian>(*name_index).expect("attr name");
+            out.write_u32::<LittleEndian>(*name_index)
+                .expect("attr name");
             out.write_u32::<LittleEndian>(*value_index).expect("raw");
             out.write_u16::<LittleEndian>(8).expect("typed size");
             out.push(0);

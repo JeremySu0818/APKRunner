@@ -7,8 +7,10 @@ use uuid::Uuid;
 use crate::apk::{load_apk, ApkSummary, LoadedApk};
 use crate::error::{ApkRunnerError, ApkRunnerResult};
 use crate::event::RuntimeEvent;
+use crate::input::InputEvent;
 use crate::permissions::PermissionState;
 use crate::runtime::{backend_for, BackendKind, RuntimeBackend};
+use crate::runtime_bundle::RuntimeBundleConfiguration;
 
 pub type RunnerHandle = Uuid;
 pub type LoadedApkHandle = Uuid;
@@ -19,6 +21,8 @@ pub type AppInstanceHandle = Uuid;
 pub struct RunnerConfiguration {
     pub backend_kind: BackendKind,
     pub sandbox_root: PathBuf,
+    #[serde(default)]
+    pub runtime_bundle: RuntimeBundleConfiguration,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,6 +46,7 @@ pub struct AppInstance {
     pub loaded_apk_id: Uuid,
     pub package_name: String,
     pub launcher_activity: Option<String>,
+    pub apk_path: PathBuf,
 }
 
 pub struct Runner {
@@ -56,7 +61,13 @@ pub struct Runner {
 
 impl Runner {
     pub fn new(config: RunnerConfiguration) -> ApkRunnerResult<Self> {
-        let backend = backend_for(config.backend_kind)?;
+        let mut config = config;
+        config.runtime_bundle = config.runtime_bundle.clone().with_environment_overrides();
+        let backend = backend_for(
+            config.backend_kind,
+            config.sandbox_root.clone(),
+            config.runtime_bundle.clone(),
+        )?;
         Ok(Self {
             id: Uuid::new_v4(),
             config,
@@ -130,6 +141,17 @@ impl Runner {
             ApkRunnerError::RuntimeBackendError(format!("unknown app instance {handle}"))
         })?;
         self.backend.stop_app(&instance)
+    }
+
+    pub fn dispatch_input(
+        &mut self,
+        handle: AppInstanceHandle,
+        input: InputEvent,
+    ) -> ApkRunnerResult<()> {
+        let instance = self.instances.get(&handle).cloned().ok_or_else(|| {
+            ApkRunnerError::RuntimeBackendError(format!("unknown app instance {handle}"))
+        })?;
+        self.backend.dispatch_input(&instance, input)
     }
 
     pub fn poll_runtime_events(&mut self) -> Vec<RuntimeEvent> {

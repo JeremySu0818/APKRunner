@@ -5,6 +5,7 @@ import {
   Boxes,
   Bug,
   Circle,
+  Download,
   FileArchive,
   FolderOpen,
   Info,
@@ -12,17 +13,23 @@ import {
   Play,
   Shield,
   Square,
-  Terminal
+  Terminal,
+  Trash2
 } from "lucide-solid";
 import { GlassProvider } from "./components/glass/GlassProvider";
 import { GlassButton, GlassPanel, GlassToolbar } from "./components/glass/GlassPrimitives";
 import {
   appState,
+  dispatchInput,
   openApk,
   pollEvents,
+  pollRuntimeOperation,
+  refreshRuntimeBundleStatus,
   refreshStatus,
   setAppState,
   startApp,
+  startRuntimeDelete,
+  startRuntimeDownload,
   stopApp,
   type DevToolsTab
 } from "./state/appState";
@@ -78,6 +85,15 @@ function Toolbar(): JSX.Element {
 function Sidebar(): JSX.Element {
   const canStart = createMemo(() => Boolean(appState.currentApk) && appState.runtimeStatus !== "Running");
   const canStop = createMemo(() => appState.runtimeStatus === "Running");
+  const runtimeBusy = createMemo(() => appState.runtimeOperation?.state === "installing" || appState.runtimeOperation?.state === "deleting");
+  const runtimeDisplayState = createMemo(() => {
+    if (runtimeBusy() || appState.runtimeOperation?.state === "error") {
+      return appState.runtimeOperation?.state;
+    }
+    return appState.runtimeBundle?.state ?? "unknown";
+  });
+  const runtimeDisplayMessage = createMemo(() => appState.runtimeOperation?.message ?? appState.runtimeBundle?.message ?? "Runtime status unavailable");
+  const runtimeDisplayError = createMemo(() => appState.runtimeOperation?.error ?? appState.runtimeBundle?.error);
 
   return (
     <GlassPanel class="sidebar">
@@ -94,6 +110,30 @@ function Sidebar(): JSX.Element {
           <Square size={18} aria-hidden="true" />
           Stop App
         </GlassButton>
+      </div>
+      <div class="runtime-bundle-box">
+        <div class="runtime-bundle-header">
+          <span>Runtime</span>
+          <strong>{runtimeDisplayState()}</strong>
+        </div>
+        <div class="runtime-bundle-message">
+          {runtimeDisplayError() ?? runtimeDisplayMessage()}
+        </div>
+        <Show when={appState.runtimeOperation?.progress !== null && appState.runtimeOperation?.progress !== undefined}>
+          <div class="runtime-progress">
+            <span style={{ width: `${Math.round((appState.runtimeOperation?.progress ?? 0) * 100)}%` }} />
+          </div>
+        </Show>
+        <div class="runtime-actions">
+          <GlassButton type="button" disabled={runtimeBusy()} onClick={() => void startRuntimeDownload()}>
+            <Download size={16} aria-hidden="true" />
+            Download
+          </GlassButton>
+          <GlassButton type="button" disabled={runtimeBusy()} onClick={() => void startRuntimeDelete()}>
+            <Trash2 size={16} aria-hidden="true" />
+            Delete
+          </GlassButton>
+        </div>
       </div>
       <div class="sidebar-status">
         <span>Status</span>
@@ -127,6 +167,22 @@ function NativeUnavailablePanel(): JSX.Element {
 }
 
 function SurfacePanel(): JSX.Element {
+  let surfaceRef: HTMLDivElement | undefined;
+
+  function handleSurfaceTap(event: MouseEvent): void {
+    if (!appState.latestFrame || appState.latestFrame.frameFormat !== "Png" || !surfaceRef) {
+      return;
+    }
+    const bounds = surfaceRef.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+    const y = Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height));
+    void dispatchInput({
+      type: "tap",
+      x: Math.round(x * appState.latestFrame.surfaceSize.width),
+      y: Math.round(y * appState.latestFrame.surfaceSize.height)
+    });
+  }
+
   return (
     <GlassPanel class="surface-panel">
       <Show when={appState.nativeAvailable} fallback={<NativeUnavailablePanel />}>
@@ -134,18 +190,22 @@ function SurfacePanel(): JSX.Element {
           when={appState.currentApk}
           fallback={<div class="empty-surface">Open an APK to inspect manifest, DEX, permissions, and runtime compatibility.</div>}
         >
-          <div class={`surface-stage ${appState.runtimeStatus === "Running" ? "surface-running" : ""}`}>
-            <Monitor size={46} aria-hidden="true" />
-            <Show
-              when={appState.runtimeStatus === "Running"}
-              fallback={<p>{appState.currentApk?.packageName} parsed successfully. Start the app to enter the skeleton runtime.</p>}
-            >
-              <div class="surface-message">
-                <strong>App surface placeholder</strong>
-                <span>Runtime backend: SkeletonRuntimeBackend</span>
-                <span>APK parsed successfully, execution backend not implemented yet.</span>
-              </div>
+          <div
+            class={`surface-stage ${appState.runtimeStatus === "Running" ? "surface-running" : ""}`}
+            ref={surfaceRef}
+            onClick={handleSurfaceTap}
+          >
+            <Show when={appState.latestFrame?.frameFormat === "Png"} fallback={<Monitor size={46} aria-hidden="true" />}>
+              <img
+                class="surface-frame"
+                src={`data:image/png;base64,${appState.latestFrame?.payloadBase64 ?? ""}`}
+                alt=""
+              />
             </Show>
+            <div class="surface-message">
+              <strong>{appState.currentApk?.packageName}</strong>
+              <span>Runtime backend: {appState.backendName}</span>
+            </div>
           </div>
         </Show>
       </Show>
@@ -324,8 +384,10 @@ function DevToolsTabs(): JSX.Element {
 export function App(): JSX.Element {
   onMount(() => {
     void refreshStatus();
+    void refreshRuntimeBundleStatus();
     const timer = window.setInterval(() => {
       void pollEvents();
+      void pollRuntimeOperation();
     }, 900);
     onCleanup(() => window.clearInterval(timer));
   });
